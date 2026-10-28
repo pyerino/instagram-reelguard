@@ -1,0 +1,3 @@
+# Copy to local.properties (git-ignored) so the Gradle build finds the Android
+# SDK — or export ANDROID_HOME instead; local.properties wins if both exist.
+# sdk.dir=/Users/you/Library/Android/sdk

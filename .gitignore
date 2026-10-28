@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+
+# Android SDK local path (see local.properties.example / docs/BUILD.md)
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Kotlin compiler spills
+.kotlin/
+
+# Patch pipeline artifacts (regenerated; never commit apks)
+pipeline/.tools/
+pipeline/.work/
+*.apk
+*.idsig
+
+# Signing material — regenerate locally, never commit
+signing/*.keystore
+signing/*.jks
+signing/keystore.properties
+
+# macOS
+.DS_Store
