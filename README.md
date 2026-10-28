@@ -50,7 +50,9 @@ Instagram (patched) ─┬─ classes3.dex  ← +1 call: InstagramAppShell.onCre
 
 ## Requirements
 
-- JDK 17, Android SDK (platform 35) — for the module build
+- JDK 17, Android SDK (platform 35) — for the module build. Fresh clones
+  self-configure: `settings.gradle.kts` provisions `local.properties` from the
+  usual SDK locations unless `ANDROID_HOME` already serves platform 35.
 - [`adb`](https://developer.android.com/tools/adb) and a device with Instagram
   453.0.0.55.79 for the known-good detection rules (older/newer builds: see
   [docs/DETECTION.md](docs/DETECTION.md))
@@ -133,6 +135,13 @@ signing/             keystore generator + properties template (git-ignored)
 docs/                BUILD · ARCHITECTURE · DETECTION
 AGENTS.md            the guide for AI collaborators — read before hacking
 ```
+
+## Provenance
+
+ReelGuard v1 was a standalone accessibility-service companion app; its budget
+engine and test suite were vendored verbatim into `app/…/core` and the
+companion retired. This repository is the successor: one artifact, zero
+runtime footprint outside Instagram.
 
 ## Development
 

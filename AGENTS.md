@@ -35,9 +35,10 @@ adb shell am broadcast -p com.instagram.android -a dev.pier.reelguard.SET_LIMIT 
 adb shell am broadcast -p com.instagram.android -a dev.pier.reelguard.RESET_TODAY --ez probe true
 ```
 
-SDK lives at `~/Library/Android/sdk` or `$ANDROID_HOME`; fresh clone wants
-`cp local.properties.example local.properties` (or export ANDROID_HOME).
-JDK 17. No other toolchain.
+SDK: on fresh clones `settings.gradle.kts` auto-provisions `local.properties`
+with the first candidate that has platform 35 (`$ANDROID_HOME`,
+`$ANDROID_SDK_ROOT`, `~/Library/Android/sdk`, `~/Android/Sdk`); an existing
+file or serving `ANDROID_HOME` always wins. JDK 17. No other toolchain.
 
 ## Hard invariants — do not violate
 

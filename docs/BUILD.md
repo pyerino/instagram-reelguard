@@ -17,7 +17,7 @@ Instagram store splits ─APKEditor──▶ merged.apk ──baksmali/smali+zip
 | Tool | Used for | Notes |
 | --- | --- | --- |
 | JDK 17 | Gradle, keytool, `java -jar` | AGP 8.7 requires 17 |
-| Android SDK, platform 35, build-tools ≥ 34 | module compile; `zipalign`, `apksigner` | `ANDROID_HOME` or `local.properties` (see `local.properties.example`) |
+| Android SDK, platform 35, build-tools ≥ 34 | module compile; `zipalign`, `apksigner` | `ANDROID_HOME` or `local.properties` — fresh clones auto-probe both plus the default SDK locations and write `local.properties` when nothing serves platform 35 |
 | `adb` | install, device verification | platform-tools |
 | `python3`, `zip`, `unzip` | call-site insert, repack | stock on macOS/Linux |
 | smali/baksmali 2.5.2, APKEditor 1.4.9 | dex surgery, split merge | `pipeline/fetch-tools.sh` (≈9 MB into `pipeline/.tools/`, git-ignored) |
