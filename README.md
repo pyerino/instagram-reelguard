@@ -167,4 +167,4 @@ Built on the excellent [smali/baksmali](https://github.com/google/smali) and
 [APKEditor](https://github.com/REAndroid/APKEditor). Instagram is a trademark
 of Meta Platforms, Inc.; this project is unaffiliated.
 
-MIT — © 2026 Pier D'Agostino, see [LICENSE](LICENSE).
+MIT — © 2026 Pierantonio D'Agostino, see [LICENSE](LICENSE).
