@@ -61,6 +61,11 @@ Instagram (patched) ─┬─ classes3.dex  ← +1 call: InstagramAppShell.onCre
 
 ## Build & install
 
+**Prebuilt?** Grab `instagram-reelguard-<v>.apk` from the
+[Releases page](https://github.com/pyerino/instagram-reelguard/releases) and
+jump to step 5 — signature/update-compatibility notes in
+[docs/RELEASING.md](docs/RELEASING.md).
+
 ```bash
 # 1. the module (plain Gradle; debug apk is the artifact that gets embedded)
 ./gradlew :app:assembleDebug
@@ -130,9 +135,9 @@ app/                 the ReelGuard module (embedded into IG's dexes)
     data/            SharedPreferences stores + embedded IG detection rules
     igpatch/         entrypoint, 1 Hz enforcement, probe, video control, UI
 gradle/              wrapper + version catalog
-pipeline/            split-merge, dex-embed and signing scripts (+tool fetcher)
+pipeline/            split-merge, dex-embed, signing and release-cutting scripts
 signing/             keystore generator + properties template (git-ignored)
-docs/                BUILD · ARCHITECTURE · DETECTION
+docs/                BUILD · ARCHITECTURE · DETECTION · RELEASING
 AGENTS.md            the guide for AI collaborators — read before hacking
 ```
 
@@ -154,6 +159,7 @@ device-facing layer is deliberately thin. History is conventional commits
 (`feat`, `fix`, `docs`, `chore`, …). Before changing behavior, read
 [AGENTS.md](AGENTS.md) — it lists the invariants that are easy to break and
 annoying to debug (theme-wrapping, the no-resources rule, verify-before-tap).
+Publishing a versioned apk: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Credits & license
 

@@ -111,7 +111,8 @@ file or serving `ANDROID_HOME` always wins. JDK 17. No other toolchain.
 - Conventional Commits, imperative, no noise:
   `feat(enforce): …`, `fix(pause): …`, `docs: …`, `chore(build): …`.
   Scope by layer: `core`, `rules`, `patch`, `enforce`, `ui`, `pipeline`,
-  `docs`. History is clean by design — no "wip", no "fix typo" floods; squash
+  `release`, `docs`. History is clean by design — no "wip", no "fix typo"
+  floods; squash
   before sharing.
 - A PR changes **behavior, docs, or both — say which**. Behavior changes to
   pause/verify must state the device evidence (logcat excerpt) in the body.
@@ -121,7 +122,9 @@ file or serving `ANDROID_HOME` always wins. JDK 17. No other toolchain.
   `DETECTION.md` (ids + harvest), `BUILD.md` (pipeline) must match reality
   after your change — stale docs here cost device-hours.
 - No binaries in git: apks, keystores, toolchain jars are generated
-  (`.gitignore` covers them; gradle-wrapper.jar is the exception).
+  (`.gitignore` covers them; gradle-wrapper.jar is the exception). Release
+  artifacts live on GitHub Releases — `pipeline/cut-release.sh` +
+  [docs/RELEASING.md](docs/RELEASING.md); never commit a `dist/`.
 - No absolute paths or credentials in tracked files — env, properties
   templates and relative paths only.
 
@@ -137,5 +140,6 @@ file or serving `ANDROID_HOME` always wins. JDK 17. No other toolchain.
 | Host entry + wiring | `app/.../igpatch/EmbeddedEntry.kt`, `ModuleGraph.kt` |
 | adb controls | `app/.../igpatch/debug/DebugReceiverInstaller.kt` |
 | dex surgery | `pipeline/embed-patch.sh` |
+| release cutting | `pipeline/cut-release.sh`, `docs/RELEASING.md` |
 
 (`app/...` = `app/src/main/java/dev/pier/reelguard`.)
