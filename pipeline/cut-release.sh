@@ -70,8 +70,9 @@ fi
 
 SUMS="$OUT/SHA256SUMS"
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
-sha256 "$ASSET" > "$SUMS"
-SHA=$(awk '{print $1}' "$SUMS")
+SHA=$(sha256 "$ASSET" | awk '{print $1}')
+# relative filenames so `sha256sum -c` works from the download dir
+(cd "$OUT" && sha256 "$(basename "$ASSET")") > "$SUMS"
 
 # notes are generated once; edit by hand afterwards (rm to regenerate)
 NOTES="$OUT/NOTES.md"
