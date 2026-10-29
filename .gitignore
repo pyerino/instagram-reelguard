@@ -15,6 +15,7 @@ local.properties
 # Patch pipeline artifacts (regenerated; never commit apks)
 pipeline/.tools/
 pipeline/.work/
+dist/
 *.apk
 *.idsig
 
