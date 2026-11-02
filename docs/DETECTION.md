@@ -24,10 +24,12 @@ harvest at the bottom of this file — never touching logic.
    `clips_pause_button` appears exactly when paused (verified across long
    sessions, not a transient toast). One id ⇒ the playing verdict *and* the
    resume-click handle.
-5. **Feed counts, never overlays.** `feed_reel` has no trustworthy marker
-   (its `video_container` leaks into other surfaces), so it counts as playing
-   while visible — acceptable for a count-only surface
-   (`Surface.overlayEnforced = false`).
+5. **Feed counts, never enforcement-overlays.** `feed_reel` has no
+   trustworthy marker (its `video_container` leaks into other surfaces), so
+   it counts as playing while visible — acceptable for a count-only surface.
+   The enforcement overlay never targets it; the separate feed *quiet-hours*
+   mechanism (gated on the **Reels-tab** budget, not a feed budget — see
+   [ARCHITECTURE](ARCHITECTURE.md#feed-quiet-hours)) is the feed's only cover.
 
 Signal-stability ranking, for when you must choose a new id (best first):
 window component names → view-id names → non-obfuscated `com.instagram.*` /
@@ -39,6 +41,7 @@ symbols. Never runtime-depend on the last two.
 | Field | Semantics |
 | --- | --- |
 | `coreIdHints` | ALL must be present (confident match) |
+| `coreAnyIdHints` | alternative core: matches when **ANY** is present (OR with the all-of core — used where a feed surface exposes only one of two holders) |
 | `idHints` | if no core ids: ANY present; else documentation/disambiguation |
 | `negativeIdHints` | veto; bare id, `pkg:id/name`, or `prefix*` glob; `(...)` remarks ignored |
 | `pausedWhenIdPresent` | marker: present ⇒ surface ∧ NOT playing; also the resume-click handle |
@@ -88,7 +91,10 @@ dumps on-device; static smali/resource analysis as cross-check.
 ### `feed_reel`
 
 - core: `video_container`
-- hints: `video_states`, `feed_tab`, `tab_bar`
+- core-any (`coreAnyIdHints`): `video_container`, `video_states` — some
+  feed-reel cells expose only the states holder; the rule matches when the
+  all-of core holds **or any** core-any id is present
+- hints: `feed_tab`, `tab_bar`
 - veto: `root_clips_layout`, `reply_bar_container`
 - no marker ⇒ counts as playing while visible
 

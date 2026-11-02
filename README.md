@@ -13,11 +13,14 @@ Instagram (patched) ─┬─ classes3.dex  ← +1 call: InstagramAppShell.onCre
                       └─ classes24.dex ← the whole ReelGuard module
 ```
 
-<!-- Screenshots: drop PNGs into docs/img/ and uncomment.
-| Daily-limit cover | Remaining-time HUD | In-IG settings |
-| --- | --- | --- |
-| ![limit cover](docs/img/cover.png) | ![hud](docs/img/hud.png) | ![settings](docs/img/settings.png) |
--->
+## Screens
+
+| | |
+| --- | --- |
+| ![feed cell cover](docs/screens/1-feed-cover.png) | ![reels limit cover](docs/screens/2-reels-cover.png) |
+| *Quiet-hours: opaque ✋ cover on the centered feed reel, ribbon above the tab bar.* | *Reels tab: the full-screen daily-limit cover.* |
+| ![hud countdown](docs/screens/3-hud-countdown.png) | ![settings](docs/screens/4-settings.png) |
+| *Live HUD — time left and reels watched today.* | *In-app settings, via long-press on the Reels tab.* |
 
 ## What it does
 
@@ -39,6 +42,21 @@ Instagram (patched) ─┬─ classes3.dex  ← +1 call: InstagramAppShell.onCre
   the paused-marker (`clips_pause_button` present ⟺ paused, live-verified on
   IG 453); unconfirmed pauses are retried up to 6×, and the final state is
   logged loudly. Playback is never blind-toggled.
+- **Feed quiet-hours.** When the *Reels-tab* budget is spent, the home feed
+  quiets down too: the centered reel-post gets an opaque ✋ cover (never over
+  the stories tray or tab bar, hidden while you scroll) plus a slim
+  non-clickable ribbon above the tab bar — the feed stays scrollable. A
+  best-effort pause/mute walk (view tree, then declared fields, two levels
+  deep) tries to still the cell's player; since IG's player is obfuscated and
+  exposes no public ExoPlayer in any dex, the cover — not the pause — is the
+  deterministic quiet. An anti-chore *quiet-scroll nudge* (one skip-drag per
+  centered cell, chained/capped) is built and tested but **ships
+  flagged off**.
+- **Reels/day counter.** The HUD grows a second chamber: `left 4:12 · 17
+  reels`. A reel counts when a tracked surface's pager advances to a new item
+  while that surface is current, playing and budgeted — the entry reel never
+  counts, re-entries can't double-credit, and the counter is display-only
+  (nothing in enforcement reads it). Reset with the daily reset.
 - **Settings where you already are.** Long-press the Reels tab in the bottom
   bar: per-surface toggles, a 1–480 min limit stepper (1-min steps under 5),
   reset-today. A cold-start prompt appears if IG opens with the budget spent.
@@ -95,7 +113,7 @@ runbook: **[docs/BUILD.md](docs/BUILD.md)**.
 | --- | --- |
 | Open settings | long-press the **Reels** tab in the bottom bar |
 | Limit today's reels | stepper in the dialog (per-surface toggles below it) |
-| See time left | the HUD pill, top-right, while a budgeted surface is up |
+| See time left | the HUD pill — `left m:ss · N reels` — on budgeted surfaces |
 | When the limit hits | the video pauses and a full-screen ✋ cover appears; back out |
 | Snooze / extend | *+5 min* style grants via adb (below) or the dialog |
 
@@ -123,8 +141,11 @@ Logs: control flow on **`ReelGuardPatch`**, ground-truth probe on
   renamed application class needs a one-line recipe change (docs/BUILD.md).
 - Single-process (`main`): the pause/cover handles the frontmost video only.
 - Picture-in-picture reels are a separate window and are not counted yet.
-- Feed reels are counted but never overlay (by design — see
-  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), surface matrix).
+- **Feed quiet-hours is honest best-effort.** It keys off the *Reels-tab*
+  budget (not a separate feed budget), the pause/mute walk cannot be verified
+  in-process (IG's player is obfuscated; no public ExoPlayer in any dex), and
+  recycled cells restart autoplay — the opaque cover, not the pause, is the
+  guarantee. Surfaces matrix: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Repository layout
 

@@ -136,6 +136,7 @@ file or serving `ANDROID_HOME` always wins. JDK 17. No other toolchain.
 | Detection semantics | `app/.../core/DetectionRules.kt`, `.../igpatch/data/EmbeddedRules.kt` |
 | Scan/probe | `app/.../igpatch/SurfaceProbe.kt` |
 | Pause/resume mechanics | `app/.../igpatch/VideoControl.kt`, `EnforcementController.kt` |
+| Feed quiet-hours / nudge | `app/.../igpatch/FeedQuietHours.kt`, `FeedNudger.kt`, `.../core/NudgePolicy.kt` |
 | Overlay/HUD/settings UI | `app/.../igpatch/ui/` |
 | Host entry + wiring | `app/.../igpatch/EmbeddedEntry.kt`, `ModuleGraph.kt` |
 | adb controls | `app/.../igpatch/debug/DebugReceiverInstaller.kt` |

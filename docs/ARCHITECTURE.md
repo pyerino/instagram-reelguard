@@ -21,6 +21,8 @@ Instagram process (main thread only)
         │                ├─ core/UsageEngine.accrueSecond
         │                ├─ core/ReelCounter.onIndexObserved   (display-only reels/day)
         │                ├─ evaluate() → igpatch/ui/ActivityOverlay (+ igpatch/VideoControl)
+        │                ├─ igpatch/FeedQuietHours.tick  feed quiet-hours: ribbon ·
+        │                │                                opaque cell cover · flag-off nudge
         │                └─ igpatch/ui/RemainingHud
         ├── igpatch/TabLongPress         settings entry (long-press Reels tab)
         └── igpatch/debug/DebugReceiverInstaller   adb control broadcasts
@@ -69,13 +71,14 @@ The controller registers two things on the `Application`:
    surface being budgeted, actually-playing, screen-on — and the ledger
    clamps at the limit so `usedSeconds` never overshoots.
 4. **`evaluate()`** — the enforcement state machine (below).
-5. **Reel counter** — while a reel-viewer surface is current, its `ViewPager2`
-   (`clips_viewer_view_pager`, class-name match + `getCurrentItem()` via
-   reflection — the module compiles against android.jar only) index is
-   compared per surface: an advance while the played-verdict holds credits
-   one reel (`core/ReelCounter`; display-only, same day-key/rollover/reset
-   as the ledger; a visit's entry reel never counts. Feed reels have no
-   per-reel index and are not counted).
+5. **Reel counter** — while a reel-viewer surface is current, its viewer
+   pager (`clips_viewer_view_pager` — a ViewPager **v1** whose child
+   `RecyclerView` layout-manager position is the index, read via reflection
+   since the module compiles against android.jar only; a ViewPager2 index
+   stays the fallback) is compared per surface: an advance while the
+   played-verdict holds credits one reel (`core/ReelCounter`; display-only,
+   same day-key/rollover/reset as the ledger; a visit's entry reel never
+   counts. Feed reels have no per-reel index and are not counted).
 6. **`updateHud()`** — remaining-budget + reels-today pill unless hidden (no
    budgeted overlay-capable surface, screen off, or cover showing).
 
@@ -118,15 +121,47 @@ Current tables (IG **453.0.0.55.79**) and the re-harvest runbook:
 | --- | --- | --- | --- | --- |
 | `reels_tab` | yes | yes | `clips_pause_button` | full-screen player + tab bar; vetoes on DM reply-bar ids |
 | `dm_player` | yes | yes | `clips_pause_button` | same clips viewer shell in a modal host + DM chrome |
-| `feed_reel` | yes | **no** | — (`video_container`…) | counted only; `Surface.overlayEnforced = false` |
+| `feed_reel` | yes | **no** | — (`video_container` **or** `video_states`, via `coreAnyIdHints`) | counted only; no enforcement overlay — but see [Feed quiet-hours](#feed-quiet-hours) |
 
 The feed's count-only semantics are a product decision: an overlay over the
 home feed would fight the infinite-scroll idiom. `UsageEngine.shouldShowOverlay`
 honors `overlayEnforced` mechanically, so new surfaces get the right behavior
 by declaration.
 
-## Enforcement & the pause/verify state machine
+## Feed quiet-hours
 
+A second, softer mechanism for the home feed (`igpatch/FeedQuietHours.kt`,
+`FeedNudger.kt`, `NudgePolicy.kt` — all unit-tested). It runs after
+`evaluate()` each tick and is **gated on the Reels-tab budget**: when
+`reels_tab` is budgeted, unsnoozed and exhausted, and the current surface is
+`feed_reel`, the feed quiets down in three layers:
+
+1. **Best-effort pause/mute walk.** One walk per distinct feed-cell instance:
+   the cell's view subtree, then two levels of declared fields (including
+   nested `ViewGroups`), trying to pause and mute whatever player-shaped
+   object turns up. "Success" is unverifiable in-process — IG's player is
+   obfuscated and no public `ExoPlayer` exists in any dex — so hollow calls
+   are expected and harmless. Cells rebind on scroll and the player restarts:
+   the walk re-arms per new instance.
+2. **Ribbon.** A slim non-clickable "✋ Reels · daily limit reached" bar above
+   the tab bar (below it in the z-order sense: appended to the content host,
+   the tab bar's sibling) — the feed remains fully scrollable.
+3. **Opaque cover.** A ✋ cover on the centered (≥ 0.75-clipped) reel-post
+   cell only, never over the stories tray or tab bar, and hidden while a
+   scroll gesture is in flight. Like the enforcement cover it is
+   clickable-to-absorb; exit by system back or surface change.
+
+The deterministic quiet is the cover, not the pause.
+
+**Quiet-scroll nudge — built, shipped flagged off** (`nudge_enabled=false`):
+when a feed cell sits centered for ≥ 1.5 s, `FeedNudger` injects one skip
+drag; `NudgePolicy` (pure, tested) allows one nudge per cell with a 3 s gap,
+chains up to 3 then cools down 10 s, and grants a fresh budget whenever the
+user scrolls manually. It exists to prevent the chore of scroll-past-reel
+without turning the feed into a slot machine; it is one `adb shell settings
+put` away for whoever wants it.
+
+## Enforcement & the pause/verify state machine
 `evaluate()` runs after every scan, accrual and settings change:
 
 ```
