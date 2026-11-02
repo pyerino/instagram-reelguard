@@ -27,18 +27,27 @@ class ReelCounter(
     private val clock: Clock,
     private val zone: ZoneId,
 ) {
-    /** Per-surface last-seen pager index; session memory, intentionally not persisted. */
-    private val lastSeenIndex = HashMap<Surface, Int>()
+    /** Per-surface high-water pager index; session memory, intentionally not persisted. */
+    private val highWaterIndex = HashMap<Surface, Int>()
 
     /** Re-anchor on surface entry: the next observation is the entry reel. */
     fun onSurfaceEnter(surface: Surface) {
-        lastSeenIndex.remove(surface)
+        highWaterIndex.remove(surface)
     }
 
-    /** Returns today's new count when [index] is an advance, else null. */
+    /**
+     * Returns today's new count when [index] is a NEW high-water mark, else
+     * null. Back-scrolls never count, and forward-again over already-seen
+     * reels neither — a reel is credited once per surface visit.
+     */
     fun onIndexObserved(surface: Surface, index: Int): Int? {
-        val previous = lastSeenIndex.put(surface, index)
-        if (previous == null || previous == index) return null
+        val highWater = highWaterIndex[surface]
+        if (highWater == null) {
+            highWaterIndex[surface] = index
+            return null
+        }
+        if (index <= highWater) return null
+        highWaterIndex[surface] = index
         return increment()
     }
 

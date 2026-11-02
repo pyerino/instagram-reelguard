@@ -13,8 +13,8 @@ android {
         applicationId = "dev.pier.reelguard.igpatch"
         minSdk = 27
         targetSdk = 34
-        versionCode = 9
-        versionName = "0.7.2"
+        versionCode = 10
+        versionName = "0.7.3"
     }
 
     buildTypes {

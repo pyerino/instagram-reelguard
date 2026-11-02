@@ -46,11 +46,18 @@ class ReelCounterTest {
     }
 
     @Test
-    fun `backward navigation counts too`() {
+    fun `backward navigation never counts and re-advancing is free`() {
         val h = CounterHarness(reelCph(2026, 11, 2, 12, 0, 0))
         h.counter.onSurfaceEnter(Surface.REELS_TAB)
-        h.counter.onIndexObserved(Surface.REELS_TAB, 4)
-        assertEquals(1, h.counter.onIndexObserved(Surface.REELS_TAB, 3))
+        assertEquals(null, h.counter.onIndexObserved(Surface.REELS_TAB, 4))
+        assertEquals(1, h.counter.onIndexObserved(Surface.REELS_TAB, 5))
+        // back to an earlier reel: no credit
+        assertEquals(null, h.counter.onIndexObserved(Surface.REELS_TAB, 3))
+        assertEquals(null, h.counter.onIndexObserved(Surface.REELS_TAB, 4))
+        // forward again over already-counted reels: still no double credit
+        assertEquals(null, h.counter.onIndexObserved(Surface.REELS_TAB, 5))
+        // a genuinely deeper reel counts once
+        assertEquals(2, h.counter.onIndexObserved(Surface.REELS_TAB, 6))
     }
 
     @Test

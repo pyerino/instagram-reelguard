@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Resources
 import android.graphics.drawable.GradientDrawable
 import android.util.Log
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -58,6 +59,10 @@ class FeedQuietHours {
     private var videoContainerId: Int = 0
     private var tabBarId: Int = 0
     private val lastLogByKey = HashMap<String, Long>()
+    private var lastQuietReassertElapsed = 0L
+    private var streamVolAtCover = -1
+    private var streamVolContext: android.content.Context? = null
+    private var lastStreamPinAttempt = 0L
     private val nudger = FeedNudger()
     private var wasExhausted = false
 
@@ -79,7 +84,10 @@ class FeedQuietHours {
         // (hollow successes are unverifiable in-proc); the opaque ✋ is the
         // deterministic quieting the user asked for.
         centered?.takeIf { it.fraction >= 0.75f }
-            ?.let { showCover(decor, it.container) } ?: removeCover()
+            ?.let {
+                showCover(decor, it.container)
+                maybeReassertQuiet(it.container)
+            } ?: removeCover()
         if (nudgeEnabled) nudger.tick(activity, centered)
     }
 
@@ -386,10 +394,56 @@ class FeedQuietHours {
      * non-clickable so scrolls and taps pass through; hidden while scrolling
      * (only the centered cell is covered) so it never swims mid-scroll.
      */
+    /** Litho hosts reject manual children; remember once, stop retrying per tick. */
+    private var hostAddFailed = false
+    private var hostSkipLogged = false
+
+    /** While covered: per-frame reposition so the cover tracks scrolls at display rate. */
+    private var frameDecor: java.lang.ref.WeakReference<ViewGroup>? = null
+    private var frameContainer: java.lang.ref.WeakReference<View>? = null
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            val box = cover ?: return
+            val decor = frameDecor?.get() ?: return
+            val cont = frameContainer?.get() ?: return
+            if (box.parent == null) return
+            positionCover(box, decor, cont) ?: run {
+                box.visibility = View.INVISIBLE
+                return
+            }
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
     private fun showCover(decor: ViewGroup, container: View) {
+        val host = if (hostAddFailed) null else container as? ViewGroup
         val existing = cover
-        if (existing != null && existing.parent === decor) {
-            positionCover(existing, decor, container) ?: run { removeCover(); }
+        if (existing != null && host != null) {
+            // Ride the cell: re-parent only when the centered cell changes; the
+            // cover then scrolls natively with the content (no 1 Hz reposition
+            // lag). If Litho strips it on rebind the parent check re-adds.
+            if (existing.parent !== host) {
+                (existing.parent as? ViewGroup)?.removeView(existing)
+                runCatching {
+                    host.addView(existing, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                }.onFailure { removeCover() }
+            }
+            if (cover != null) {
+                existing.visibility = View.VISIBLE
+                coverParent = host
+                return
+            }
+        }
+        if (host == null && !hostSkipLogged) {
+            hostSkipLogged = true
+            Log.i(TAG, "feed quiet: cover on decor; container not a ViewGroup: ${container.javaClass.name}")
+        }
+        if (existing != null && host == null && existing.parent === decor) {
+            positionCover(existing, decor, container) ?: run { removeCover(); return }
+            frameDecor = java.lang.ref.WeakReference(decor)
+            frameContainer = java.lang.ref.WeakReference(container)
+            Choreographer.getInstance().removeFrameCallback(frameCallback)
+            Choreographer.getInstance().postFrameCallback(frameCallback)
             return
         }
         removeCover()
@@ -405,16 +459,13 @@ class FeedQuietHours {
             textSize = 14f
             isClickable = false
             isFocusable = false
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-            )
         }
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             isClickable = false
             isFocusable = false
+            elevation = dp(5).toFloat()
             background = GradientDrawable().apply {
                 // User asked for OPAQUE: force full alpha on the palette color.
                 setColor((Palette.CARD_BACKGROUND or 0xFF000000).toInt())
@@ -422,7 +473,21 @@ class FeedQuietHours {
             }
             addView(label)
         }
-        box.elevation = dp(5).toFloat()
+        if (host != null) {
+            val added = runCatching {
+                host.addView(box, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            }.onFailure {
+                hostAddFailed = true
+                Log.i(TAG, "feed quiet: in-cell add failed on ${host.javaClass.simpleName}: ${it.message}")
+            }.isSuccess
+            if (added) {
+                cover = box
+                coverParent = host
+                box.visibility = View.VISIBLE
+                Log.i(TAG, "feed quiet: cover mounted in cell (native scroll)")
+                return
+            }
+        }
         box.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -431,10 +496,12 @@ class FeedQuietHours {
         cover = box
         coverParent = decor
         positionCover(box, decor, container)
+        frameDecor = java.lang.ref.WeakReference(decor)
+        frameContainer = java.lang.ref.WeakReference(container)
+        Choreographer.getInstance().postFrameCallback(frameCallback)
         Log.i(TAG, "feed quiet: cover shown over centered video cell")
     }
 
-    /** Cover = container rect, clipped above the tab bar; null if degenerate. */
     private fun positionCover(box: ViewGroup, decor: ViewGroup, container: View): android.graphics.Rect? {
         val rect = android.graphics.Rect()
         if (!container.getGlobalVisibleRect(rect) || rect.isEmpty) return null
@@ -466,18 +533,67 @@ class FeedQuietHours {
     }
 
     private fun removeCover() {
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
+        frameDecor = null
+        frameContainer = null
         val view = cover ?: run {
             coverParent = null
+            restoreStreamVolume()
             return
         }
         runCatching { (view.parent as? ViewGroup)?.removeView(view) }
+        restoreStreamVolume()
         cover = null
         coverParent = null
+    }
+
+    /**
+     * The quiet state is maintained, not one-shot: the walk re-runs on a 2 s
+     * cadence (player gain drifts back: the user's volume keys multiply the
+     * stream, and IG rebinds players), and the media stream is pinned to 0
+     * while covered, restored to its pre-cover level on uncover.
+     */
+    private fun maybeReassertQuiet(cellRoot: View) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        pinStreamVolume()
+        if (now - lastQuietReassertElapsed < QUIET_REASSERT_MS) return
+        lastQuietReassertElapsed = now
+        attemptPause(cellRoot)
+    }
+
+    private fun pinStreamVolume() {
+        if (streamVolContext == null) streamVolContext = coverParent?.context?.applicationContext
+        val audio = streamVolContext?.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager ?: return
+        if (streamVolAtCover < 0) {
+            streamVolAtCover = runCatching { audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) }.getOrDefault(-1)
+        }
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastStreamPinAttempt < STREAM_PIN_ATTEMPT_MS) return
+        lastStreamPinAttempt = now
+        val current = runCatching { audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) }.getOrDefault(0)
+        if (current != 0) {
+            runCatching { audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, 0, 0) }
+            throttledLog("feed quiet: stream pinned 0 (was $current)")
+        }
+    }
+
+    private fun restoreStreamVolume() {
+        val level = streamVolAtCover
+        if (level < 0) return
+        streamVolAtCover = -1
+        streamVolContext?.let { ctx ->
+            val audio = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+            audio?.let { runCatching { it.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, level, 0) } }
+        }
+        streamVolContext = null
+        lastQuietReassertElapsed = 0L
     }
 
     private companion object {
         const val TAG = "ReelGuardPatch"
         const val PAUSE_LOG_GAP_MS = 5000L
+        const val QUIET_REASSERT_MS = 2000L
+        const val STREAM_PIN_ATTEMPT_MS = 1000L
         const val MAX_SCAN_NODES = 400
         const val MAX_PAUSE_WALK = 60
         const val MAX_FIELDS_PER_NODE = 12
