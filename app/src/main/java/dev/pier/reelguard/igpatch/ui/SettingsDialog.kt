@@ -17,6 +17,7 @@ import android.widget.FrameLayout
 import dev.pier.reelguard.core.Surface
 import dev.pier.reelguard.igpatch.ModuleGraph
 import dev.pier.reelguard.igpatch.Palette
+import dev.pier.reelguard.igpatch.R
 
 /**
  * In-Instagram settings: dark programmatic dialog (no theme/resource machinery),

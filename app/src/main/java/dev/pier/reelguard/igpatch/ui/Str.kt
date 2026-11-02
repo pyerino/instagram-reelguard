@@ -22,7 +22,17 @@ object Str {
     const val SURFACE_DM_PLAYER_TITLE = "DM player"
     const val SURFACE_FEED_REEL_TITLE = "Feed reel"
 
+    const val FEED_QUIET_RIBBON = "✋ Reels limit reached"
+
     fun overlayTitle(used: Int, limit: Int) = "Reels · daily limit reached ($used/$limit min)"
     fun overlayCaption(used: Int, limit: Int) = "today: $used / $limit min"
     fun minutes(n: Int) = "$n min"
+
+    /** HUD pill: `left m:ss · N reels` (N capped, see ReelCounter.displayCount). */
+    fun hudRemaining(minutes: Int, seconds: Int, reels: String) =
+        "left %d:%02d · %s reels".format(minutes, seconds, reels)
+
+    /** Screen-reader form of the same pill; the visual one is abbreviated. */
+    fun hudRemainingA11y(minutes: Int, seconds: Int, reels: String) =
+        "%d:%02d left, %s reels watched today".format(minutes, seconds, reels)
 }

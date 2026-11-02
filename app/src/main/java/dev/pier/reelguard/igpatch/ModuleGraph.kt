@@ -34,6 +34,14 @@ class ModuleGraph(context: Context) {
     val rules: dev.pier.reelguard.core.DetectionRules =
         dev.pier.reelguard.core.DetectionRules.fromJson(EmbeddedRules.DETECTION_JSON.trim())
 
+    /** Display-only reels/day counter; same prefs file and midnight rule. */
+    val reelCounter: dev.pier.reelguard.core.ReelCounter =
+        dev.pier.reelguard.core.ReelCounter(
+            dev.pier.reelguard.data.SharedPreferencesReelCounterStore(prefs),
+            clock,
+            zone,
+        )
+
     companion object {
         const val PREFERENCES_NAME = "reelguard"
     }

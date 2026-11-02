@@ -7,11 +7,13 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import dev.pier.reelguard.core.ReelCounter
 
 /**
  * Live remaining-budget pill, top-right of the decor: dark rounded plate, 2dp
- * white stroke, bold `mm:ss` (with a quiet "left" lead). Visible only while a
- * budgeted overlay-capable surface is up, screen on, and no enforcement card.
+ * white stroke, bold `mm:ss` (with a quiet "left" lead) plus today's reel
+ * count. Visible only while a budgeted overlay-capable surface is up, screen
+ * on, and no enforcement card.
  */
 class RemainingHud(private val activity: Activity) {
 
@@ -39,11 +41,13 @@ class RemainingHud(private val activity: Activity) {
         }
     }
 
-    fun update(remainingSeconds: Int) {
+    fun update(remainingSeconds: Int, reelsToday: Int = 0) {
         val view = this.view ?: return
         val minutes = remainingSeconds / 60
         val seconds = remainingSeconds % 60
-        view.text = "left %d:%02d".format(minutes, seconds)
+        val reels = ReelCounter.displayCount(reelsToday)
+        view.text = Str.hudRemaining(minutes, seconds, reels)
+        view.contentDescription = Str.hudRemainingA11y(minutes, seconds, reels)
     }
 
     fun hide() {
@@ -66,7 +70,7 @@ class RemainingHud(private val activity: Activity) {
             setTypeface(typeface, Typeface.BOLD)
             textSize = 13f
             setPadding(dp(10), dp(5), dp(10), dp(5))
-            text = "left 0:00"
+            text = Str.hudRemaining(0, 0, "0")
         }
     }
 

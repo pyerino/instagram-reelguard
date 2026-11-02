@@ -4,9 +4,9 @@ import org.json.JSONObject
 
 /**
  * Detection rules are data, not code: view-id sets harvested from the IG build
- * (runbook in docs/DETECTION.md) plus a paused-marker that encodes the
- * live-verified rule "paused <=> <marker> node present". Keeping this as data
- * lets detection be repaired after IG updates without touching logic.
+ * (see ig-reversing/) plus a paused-marker that encodes the live-verified rule
+ * "paused <=> <marker> node present". Keeping this in assets lets detection be
+ * repaired after IG updates without touching logic.
  */
 data class DetectionSample(
     val label: String,
@@ -17,6 +17,8 @@ data class DetectionSample(
 data class SurfaceRule(
     val id: String,
     val coreIdHints: List<String> = emptyList(),
+    /** Alternative core: matches when ANY of these is present (OR with core). */
+    val coreAnyIdHints: List<String> = emptyList(),
     val idHints: List<String> = emptyList(),
     val negativeIdHints: List<String> = emptyList(),
     val pausedWhenIdPresent: String? = null,
@@ -32,9 +34,13 @@ data class SurfaceRule(
      * globs, optionally followed by a "(...)" remark which is ignored.
      */
     fun matches(presentIds: Set<String>): Boolean {
-        if (coreIdHints.isEmpty() && idHints.isEmpty()) return false
-        if (!coreIdHints.all { it in presentIds }) return false
-        if (coreIdHints.isEmpty() && idHints.none { it in presentIds }) return false
+        val hasCore = coreIdHints.isNotEmpty() || coreAnyIdHints.isNotEmpty()
+        if (!hasCore && idHints.isEmpty()) return false
+        if (hasCore) {
+            val allOk = coreIdHints.isNotEmpty() && coreIdHints.all { it in presentIds }
+            val anyOk = coreAnyIdHints.any { it in presentIds }
+            if (!allOk && !anyOk) return false
+        } else if (idHints.none { it in presentIds }) return false
         return negativeIdHints.none { vetoMatches(it, presentIds) }
     }
 
@@ -71,8 +77,10 @@ data class DetectionRules(
 
     /** Every id one tree scan must look for. */
     fun referencedViewIds(): List<String> = orderedRules()
-        .flatMap { (_, rule) -> rule.coreIdHints + rule.idHints + listOfNotNull(rule.pausedWhenIdPresent) }
-        .distinct()
+        .flatMap { (_, rule) ->
+            rule.coreIdHints + rule.coreAnyIdHints + rule.idHints +
+                listOfNotNull(rule.pausedWhenIdPresent)
+        }.distinct()
 
     /** First surface whose rule matches the present-id set, else null. */
     fun detect(presentIds: Set<String>): Surface? =
@@ -93,6 +101,7 @@ data class DetectionRules(
                 surfaces[id] = SurfaceRule(
                     id = id,
                     coreIdHints = stringList(obj, "coreIdHints"),
+                    coreAnyIdHints = stringList(obj, "coreAnyIdHints"),
                     idHints = stringList(obj, "idHints"),
                     negativeIdHints = stringList(obj, "negativeIdHints"),
                     pausedWhenIdPresent = obj.optString("pausedWhenIdPresent").takeUnless(String::isEmpty),

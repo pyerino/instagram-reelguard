@@ -113,11 +113,11 @@ object EmbeddedRules {
       ]
     },
     "feed_reel": {
-      "coreIdHints": [
-        "com.instagram.android:id/video_container"
+      "coreAnyIdHints": [
+        "com.instagram.android:id/video_container",
+        "com.instagram.android:id/video_states"
       ],
       "idHints": [
-        "com.instagram.android:id/video_states",
         "com.instagram.android:id/feed_tab",
         "com.instagram.android:id/tab_bar"
       ],

@@ -3,6 +3,8 @@ package dev.pier.reelguard.data
 import android.content.SharedPreferences
 import dev.pier.reelguard.core.LedgerStore
 import dev.pier.reelguard.core.SettingsRepository
+import dev.pier.reelguard.core.ReelCounterStore
+import dev.pier.reelguard.core.ReelCountState
 import dev.pier.reelguard.core.SnoozeRepository
 import dev.pier.reelguard.core.Surface
 import dev.pier.reelguard.core.UsageState
@@ -55,6 +57,25 @@ class SharedPreferencesSettings(private val prefs: SharedPreferences) : Settings
 
         private const val KEY_LIMIT_MINUTES = "limit_minutes"
         private const val KEY_SURFACE_PREFIX = "surface_budgeted_"
+    }
+}
+
+class SharedPreferencesReelCounterStore(private val prefs: SharedPreferences) : ReelCounterStore {
+    override fun load(): ReelCountState? {
+        if (!prefs.contains(KEY_DAY)) return null
+        return ReelCountState(
+            dayEpochDay = prefs.getLong(KEY_DAY, 0L),
+            count = prefs.getInt(KEY_COUNT, 0),
+        )
+    }
+
+    override fun save(state: ReelCountState) {
+        prefs.edit().putLong(KEY_DAY, state.dayEpochDay).putInt(KEY_COUNT, state.count).apply()
+    }
+
+    companion object {
+        private const val KEY_DAY = "reels_count_day_epoch_day"
+        private const val KEY_COUNT = "reels_count"
     }
 }
 

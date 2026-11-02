@@ -13,6 +13,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import dev.pier.reelguard.core.ReelCounter
 import dev.pier.reelguard.core.Surface
 import dev.pier.reelguard.igpatch.debug.DebugReceiverInstaller
 import dev.pier.reelguard.igpatch.ui.ActivityOverlay
@@ -37,6 +38,7 @@ class EnforcementController private constructor() {
     private var currentSurface: Surface? = null
 
     private val playingBySurface = HashMap<Surface, Boolean>()
+    private val feedQuietHours = FeedQuietHours()
     private var resumed: Activity? = null
     private var overlay: ActivityOverlay? = null
     private var settingsDialog: Dialog? = null
@@ -52,6 +54,7 @@ class EnforcementController private constructor() {
     private var verifyRunnable: Runnable? = null
     private var lastPresentIds: Set<String> = emptySet()
     private var lastEnforceAttemptElapsed = 0L
+    private var scannedPagerIndex: Int? = null
 
     // ground-truth probe window (debug broadcast, extra "probe"=true)
     private var probeUntilElapsed = 0L
@@ -70,6 +73,9 @@ class EnforcementController private constructor() {
     fun onSurfaceEnter(surface: Surface) {
         if (currentSurface != surface) {
             currentSurface = surface
+            // Entry reel never counts: re-anchor so the first observation on a
+            // (re)entered surface is remembered, not credited.
+            graph.reelCounter.onSurfaceEnter(surface)
         }
         evaluate()
     }
@@ -109,9 +115,42 @@ class EnforcementController private constructor() {
         if (surface != null) {
             graph.engine.accrueSecond(surface, playing = playing, screenInteractive = interactive)
         }
+        countReelIfAdvanced(surface, playing, interactive)
 
         evaluate()
+        runCatching { feedQuietTick() }
         updateHud()
+    }
+
+    /**
+     * Feed quiet-hours gate (recon analysis3): ribbon + best-effort pause on
+     * the HOME FEED only, while the REELS_TAB budget is spent and unsnoozed.
+     * Same tick that manages the cover overlay; never on reels/DM.
+     */
+    private fun feedQuietTick() {
+        val snapshot = graph.engine.snapshot()
+        val exhausted = graph.settings.isSurfaceBudgeted(Surface.REELS_TAB) &&
+            snapshot.budgetExhausted && !snapshot.snoozeActive
+        feedQuietHours.tick(
+            activity = resumed,
+            feedReelVisible = currentSurface == Surface.FEED_REEL,
+            reelsExhausted = exhausted,
+        )
+    }
+
+    /**
+     * Display-only reel counter (FEATURE: reels/day in the HUD): +1 when the
+     * reels pager advances to a new item while the surface is current, the
+     * played-verdict holds and the surface is budgeted. Never feeds back into
+     * enforcement; reel viewers only (the feed has no per-reel index).
+     */
+    private fun countReelIfAdvanced(surface: Surface?, playing: Boolean, screenInteractive: Boolean) {
+        if (surface != Surface.REELS_TAB && surface != Surface.DM_PLAYER) return
+        val index = scannedPagerIndex ?: return
+        if (!playing || !screenInteractive) return
+        if (!graph.settings.isSurfaceBudgeted(surface)) return
+        val count = graph.reelCounter.onIndexObserved(surface, index) ?: return
+        Log.i(TAG, "reel counted #${ReelCounter.displayCount(count)} (${surface.id} pagerIndex $index)")
     }
 
     /** Decor id-set scan; refreshes surface state and the view-control handles. */
@@ -127,6 +166,7 @@ class EnforcementController private constructor() {
         }
         videoView = scan.videoView
         pauseButtonView = scan.pauseButton
+        scannedPagerIndex = scan.reelsPagerIndex
         if (scan.surface != null && scan.playing != null) {
             playingBySurface[scan.surface] = scan.playing
         }
@@ -257,7 +297,7 @@ class EnforcementController private constructor() {
             hud = RemainingHud(activity).also { it.show() }
             hudHost = activity
         }
-        hud?.update(graph.engine.snapshot().remainingSeconds)
+        hud?.update(graph.engine.snapshot().remainingSeconds, graph.reelCounter.todayCount())
     }
 
     private fun detachHud() {
@@ -279,7 +319,10 @@ class EnforcementController private constructor() {
                 if (minutes > 0) graph.settings.setLimitMinutes(minutes)
             }
 
-            DebugReceiverInstaller.ACTION_RESET_TODAY -> graph.engine.resetToday()
+            DebugReceiverInstaller.ACTION_RESET_TODAY -> {
+                graph.engine.resetToday()
+                graph.reelCounter.resetToday()
+            }
 
             DebugReceiverInstaller.ACTION_SNOOZE ->
                 graph.engine.snoozeMinutes(
