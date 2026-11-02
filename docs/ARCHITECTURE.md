@@ -75,10 +75,13 @@ The controller registers two things on the `Application`:
    pager (`clips_viewer_view_pager` — a ViewPager **v1** whose child
    `RecyclerView` layout-manager position is the index, read via reflection
    since the module compiles against android.jar only; a ViewPager2 index
-   stays the fallback) is compared per surface: an advance while the
-   played-verdict holds credits one reel (`core/ReelCounter`; display-only,
-   same day-key/rollover/reset as the ledger; a visit's entry reel never
-   counts. Feed reels have no per-reel index and are not counted).
+   stays the fallback) is compared against a per-surface **high-water mark**:
+   only a new high-water while the played-verdict holds credits one reel
+   (`core/ReelCounter`; display-only, same day-key/rollover/reset as the
+   ledger). Back-scrolls never count and forward-again over already-seen
+   reels neither — a reel is credited once per surface visit; a visit's
+   entry reel never counts. Feed reels have no per-reel index and are not
+   counted.
 6. **`updateHud()`** — remaining-budget + reels-today pill unless hidden (no
    budgeted overlay-capable surface, screen off, or cover showing).
 
@@ -143,13 +146,26 @@ A second, softer mechanism for the home feed (`igpatch/FeedQuietHours.kt`,
    obfuscated and no public `ExoPlayer` exists in any dex — so hollow calls
    are expected and harmless. Cells rebind on scroll and the player restarts:
    the walk re-arms per new instance.
+   **Maintenance.** The quiet is asserted, not assumed: while the cover
+   shows, the walk re-asserts on a 2 s cadence (players rebind; the user's
+   volume keys multiply the stream gain back up), and the media stream is
+   *pinned to 0* on a ≥ 1 s attempt cadence — the pre-cover level is
+   remembered and restored when the cover leaves, so volume presses land
+   again the moment quiet-hours ends.
 2. **Ribbon.** A slim non-clickable "✋ Reels · daily limit reached" bar above
    the tab bar (below it in the z-order sense: appended to the content host,
    the tab bar's sibling) — the feed remains fully scrollable.
 3. **Opaque cover.** A ✋ cover on the centered (≥ 0.75-clipped) reel-post
    cell only, never over the stories tray or tab bar, and hidden while a
-   scroll gesture is in flight. Like the enforcement cover it is
-   clickable-to-absorb; exit by system back or surface change.
+   scroll gesture is in flight. It **rides the cell**: parented inside the
+   centered cell's container it scrolls natively with the content (re-parent
+   on cell change; re-added if Litho strips it on rebind). Hosts that reject
+   adopted children (`hostAddFailed`, logged once, never retried that
+   session) get the fallback: a decor-level cover repositioned **per-frame**
+   by a `Choreographer` callback — display-rate tracking, not the 1 Hz
+   ticker — whose loop dies with its weak refs when the cover does. Like the
+   enforcement cover it is clickable-to-absorb; exit by system back or
+   surface change.
 
 The deterministic quiet is the cover, not the pause.
 

@@ -49,13 +49,19 @@ Instagram (patched) ─┬─ classes3.dex  ← +1 call: InstagramAppShell.onCre
   best-effort pause/mute walk (view tree, then declared fields, two levels
   deep) tries to still the cell's player; since IG's player is obfuscated and
   exposes no public ExoPlayer in any dex, the cover — not the pause — is the
-  deterministic quiet. An anti-chore *quiet-scroll nudge* (one skip-drag per
-  centered cell, chained/capped) is built and tested but **ships
-  flagged off**.
+  deterministic quiet. The quiet is *maintained*, not one-shot: the walk
+  re-asserts on a 2 s cadence (players rebind, gain drifts back) and the
+  media stream is pinned to 0 while covered — volume presses are
+  re-absorbed — then restored on uncover. The cover rides the centered cell
+  (native scrolling); hosts that reject adopted children get a per-frame
+  `Choreographer` fallback. An anti-chore *quiet-scroll nudge* (one
+  skip-drag per centered cell, chained/capped) is built and tested but
+  **ships flagged off**.
 - **Reels/day counter.** The HUD grows a second chamber: `left 4:12 · 17
   reels`. A reel counts when a tracked surface's pager advances to a new item
   while that surface is current, playing and budgeted — the entry reel never
-  counts, re-entries can't double-credit, and the counter is display-only
+  counts, a per-visit high-water keeps back-scrolls and re-passes from
+  double-crediting, and the counter is display-only
   (nothing in enforcement reads it). Reset with the daily reset.
 - **Settings where you already are.** Long-press the Reels tab in the bottom
   bar: per-surface toggles, a 1–480 min limit stepper (1-min steps under 5),
@@ -145,7 +151,9 @@ Logs: control flow on **`ReelGuardPatch`**, ground-truth probe on
   budget (not a separate feed budget), the pause/mute walk cannot be verified
   in-process (IG's player is obfuscated; no public ExoPlayer in any dex), and
   recycled cells restart autoplay — the opaque cover, not the pause, is the
-  guarantee. Surfaces matrix: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+  guarantee. While covered, media volume is pinned to 0 — volume presses are
+  re-absorbed until you leave — and restored on uncover. Surfaces matrix:
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Repository layout
 
