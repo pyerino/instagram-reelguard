@@ -17,7 +17,9 @@ Instagram process (main thread only)
         │     │     └── core/DetectionRules ◀── igpatch/data/EmbeddedRules (data!)
         │     └── settings: core/SettingsRepository (SharedPreferences)
         ├── 1 Hz ticker ─┬─ igpatch/SurfaceProbe      decor BFS → surface + handles
+        │                │                              (+ reels-pager index via reflection)
         │                ├─ core/UsageEngine.accrueSecond
+        │                ├─ core/ReelCounter.onIndexObserved   (display-only reels/day)
         │                ├─ evaluate() → igpatch/ui/ActivityOverlay (+ igpatch/VideoControl)
         │                └─ igpatch/ui/RemainingHud
         ├── igpatch/TabLongPress         settings entry (long-press Reels tab)
@@ -67,8 +69,15 @@ The controller registers two things on the `Application`:
    surface being budgeted, actually-playing, screen-on — and the ledger
    clamps at the limit so `usedSeconds` never overshoots.
 4. **`evaluate()`** — the enforcement state machine (below).
-5. **`updateHud()`** — remaining-budget pill unless hidden (no budgeted
-   overlay-capable surface, screen off, or cover showing).
+5. **Reel counter** — while a reel-viewer surface is current, its `ViewPager2`
+   (`clips_viewer_view_pager`, class-name match + `getCurrentItem()` via
+   reflection — the module compiles against android.jar only) index is
+   compared per surface: an advance while the played-verdict holds credits
+   one reel (`core/ReelCounter`; display-only, same day-key/rollover/reset
+   as the ledger; a visit's entry reel never counts. Feed reels have no
+   per-reel index and are not counted).
+6. **`updateHud()`** — remaining-budget + reels-today pill unless hidden (no
+   budgeted overlay-capable surface, screen off, or cover showing).
 
 Every stage is `runCatching`-guarded: a hostile host state degrades to a
 skipped tick, never a crash inside Instagram.
@@ -170,8 +179,9 @@ dialogs, no windows, no permissions:
   (`#FA141419`), centered ✋🏻 + “Reels · daily limit reached”, clickable to
   *absorb* touches (exit = system back or surface change). No buttons by
   design; the pause must hold while it shows.
-- **`ui/RemainingHud`** — top-right pill `left m:ss`, dark plate, 2 dp stroke;
-  recreated per host activity, hidden under the cover / screen-off /
+- **`ui/RemainingHud`** — top-right pill `left m:ss · N reels` (count capped
+  at `999+`; contentDescription carries the un-abbreviated form), dark plate,
+  2 dp stroke; recreated per host activity, hidden under the cover / screen-off /
   non-budgeted surfaces.
 - **`ui/SettingsDialog`** — an `android.app.Dialog` themed dark: limit stepper
   (1-min steps ≤ 5, then 5; store accepts 1–1440 for adb-driven tests), a
@@ -197,6 +207,8 @@ One `SharedPreferences` file, **`reelguard`**, in the host's data dir
 | --- | --- | --- |
 | `budget_day_epoch_day` | long | local-date epoch day of the ledger |
 | `budget_used_seconds` | int | seconds accrued that day |
+| `reels_count_day_epoch_day` | long | local-date epoch day of the reel counter |
+| `reels_count` | int | reels watched today (display-only) |
 | `limit_minutes` | int | daily budget (clamped 1–1440 on write) |
 | `surface_budgeted_<id>` | bool | per-surface kill switch (default = declaration) |
 | `snooze_until_millis` | long | absolute expiry; 0 = none |
