@@ -10,9 +10,9 @@ object EmbeddedRules {
 {
   "schemaVersion": 1,
   "packageNames": ["com.instagram.android"],
-  "igVersionName": "453.0.0.55.79",
-  "igVersionCode": 385914243,
-  "source": "static smali/resource analysis corrected by live uiautomator-tree passes on 453.0.0.55.79 (runtime trees beat static inference); re-harvest runbook in docs/DETECTION.md",
+  "igVersionName": "456.0.0.53.78",
+  "igVersionCode": 386214574,
+  "source": "static smali/resource analysis corrected by live uiautomator-tree passes on 453.0.0.55.79 (runtime trees beat static inference); re-harvest runbook in docs/DETECTION.md; carried to 455/456 device-verified",
   "notes": "Single-window fragment architecture: surfaces are classified from accessibility view-id sets only, never from activity/component names. Live-verified on 453.0.0.55.79: (1) while a clip plays NO play/pause nodes exist; com.instagram.android:id/clips_pause_button appears only while paused - in the reels tab AND the DM viewer; (2) the static ids clips_video_player / clips_ufi_like_button / video_player_view / player_controls_* do NOT occur in any runtime tree - replaced by the ids below; (3) the DM viewer shares the whole clips* viewer shell (root_clips_layout, clips_video_container) plus DM chrome (reply_bar_container, reel_viewer_message_composer, sender_*), so reels_tab vetoes on reply bars and dm_player requires them; (4) feed videos expose video_container/video_states, no clips ids. Picture-in-picture reels (ClipsPiPInternalActivity) are a separate window, not counted in v1.",
   "surfaces": {
     "reels_tab": {
