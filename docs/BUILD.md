@@ -73,7 +73,8 @@ What it does, in order:
 
 1. **baksmali** the merged apk's `classes3.dex` and every module dex.
 2. Recompiles the module tree into a **single new dex**, destined for
-   `classesN.dex` (default `classes24`) — the module never inflates IG's
+   `classesN.dex` (`N` = next free slot, computed from the merged apk — see
+   [the slot rule](#the-module-dex-slot)) — the module never inflates IG's
    existing dexes.
 3. Inserts the single call-site into
    `com/instagram/app/InstagramAppShell.smali`, method `onCreate()V`, right
@@ -89,17 +90,22 @@ What it does, in order:
 5. `zipalign -f 4`, then `apksigner sign` and a `verify --print-certs`
    sanity print, then greps both dexes for `EmbeddedEntry` as a smoke check.
 
-### The `classes24` invariant
+### The module dex slot
 
-Instagram 453 ships `classes1.dex … classes23.dex`. The embed appends the
-module as the **next free index** because:
+The embed appends the module as the **next free index**, computed at run time
+from the merged apk (`highest classes<N>.dex + 1`) — Instagram 453 ships
+`classes1…23` → slot **24**; 455 ships `classes1…32` → slot **33**:
 
 - dex filenames are loaded by the `Application` startup path in order; a
-  **collision with an existing index would silently replace host code**;
-- the name is part of the pipeline contract (zip entry, smoke-check greps).
+  **collision with an existing index would silently replace host code** —
+  the hardcoded-slot era produced exactly that boot crash
+  (`NoClassDefFoundError` from `InstagramAppShell.attachBaseContext`);
+- the name is part of the pipeline contract (zip entry, smoke-check greps —
+  both echo the resolved slot).
 
-If a future IG has 24+ dexes, the script refuses and asks for
-`REELGUARD_DEX_INDEX=<n+1>` — do not lower it onto an existing dex.
+The auto-slot cannot collide by construction. `REELGUARD_DEX_INDEX` remains
+as a manual override; if the forced index is taken the script refuses —
+never lower it onto an existing dex.
 
 ### Signing & keystore resolution
 
@@ -147,11 +153,33 @@ adb shell am start -n com.instagram.android/.activity.MainTabActivity
   adb logcat -s ReelGuardPatch ReelGuardProbe
   ```
 
+## Instagram version compatibility
+
+**Re-run the whole pipeline per Instagram minor update** — the patched apk
+is pinned to the base it was built from; there is no in-place upgrade.
+
+| | 453.0.0.55.79 | 455.0.0.51.72 |
+| --- | --- | --- |
+| root dexes | 23 → module slot **24** | 32 → module slot **33** (auto) |
+| entry call-site | `InstagramAppShell.onCreate`, classes3 | unchanged |
+| store splits | 9 (base + 8 configs) | **2 (base + xxhdpi)** |
+
+The detection rules shipped in 0.7.4 are the 453-harvested tables; they are
+device-verified on 455 (id families survived). If a surface misbehaves after
+a future update, re-harvest per [DETECTION.md](DETECTION.md).
+
+**Play updates vs the patched install.** Play-store updates fail with a
+*signature error* against our build by design — different cert. The options:
+
+- **stay patched**: disable auto-updates for Instagram in Play
+  (`Auto-update` → off for the app); re-run this pipeline when *you* choose.
+- **go back to stock**: uninstall the patched build, update via Play
+  (loses the session and our data), re-patch afterwards.
+
 ## Retargeting a newer Instagram
 
-1. **Merge** the new splits (step 3) and count dexes:
-   `unzip -l merged.apk | grep -c 'classes.*\.dex'`. If ≥ 24, export
-   `REELGUARD_DEX_INDEX=<count+1>`.
+1. **Merge** the new splits (step 3). The module dex slot is computed
+   automatically; export `REELGUARD_DEX_INDEX` only to force one.
 2. **Insertion point**: confirm
    `com/instagram/app/InstagramAppShell.smali` still exists in `classes3`
    and still has an `onCreate()V`. If the application class moved (check
@@ -170,7 +198,7 @@ adb shell am start -n com.instagram.android/.activity.MainTabActivity
 | Symptom | Likely cause / fix |
 | --- | --- |
 | `no onCreate()V + registers/locals match` | obfuscation changed the shell method — locate the new `Application` subclass, adapt the recipe (above) |
-| `merged apk already has classes24.dex` | IG grew a dex — raise `REELGUARD_DEX_INDEX` |
+| `REELGUARD_DEX_INDEX=… is taken` | forced index collides — unset it and let the auto-slot pick the next free index |
 | `apksigner verify` fails after sign | stale zipalign — the pipeline aligns before signing; make sure you sign the *aligned* file (the script does) |
 | Crash on any ReelGuard view at runtime | a view escaped the `ContextThemeWrapper` wrap — every view, every time (see AGENTS.md §invariants) |
 | Settings/overlay texts render with wrong theme colors | same — theme-wrap, never style via IG resources |

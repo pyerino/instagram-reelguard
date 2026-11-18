@@ -9,8 +9,8 @@ extra `invoke-static` in Instagram's application class is the entire
 integration surface.
 
 ```
-Instagram (patched) ─┬─ classes3.dex  ← +1 call: InstagramAppShell.onCreate → EmbeddedEntry.onApp
-                      └─ classes24.dex ← the whole ReelGuard module
+Instagram (patched) ─┬─ classes3.dex   ← +1 call: InstagramAppShell.onCreate → EmbeddedEntry.onApp
+                      └─ classes<N>.dex ← the whole ReelGuard module (next free slot: 24 on IG 453, 33 on 455)
 ```
 
 ## Screens

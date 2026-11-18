@@ -54,10 +54,11 @@ file or serving `ANDROID_HOME` always wins. JDK 17. No other toolchain.
    are ARGB constants (`Palette.kt`); all ids are resolved via
    `resources.getIdentifier("name", "id", hostPackage)`. Do not add
    `res/`, do not import the module `R`.
-3. **`classes24` discipline.** The module dex must be the next free index
-   (453 has 1–23); a collision silently replaces host code. The pipeline
-   refuses on collision — raise `REELGUARD_DEX_INDEX`, never lower it onto an
-   existing dex.
+3. **Module-dex slot discipline.** The module dex is the **next free index**,
+   computed from the merged apk (IG 453: 23 dexes → slot 24; 455: 32 → 33) —
+   never hardcode it; a stale slot silently replaces a host dex and crashes
+   the boot. `REELGUARD_DEX_INDEX` overrides; the pipeline refuses a taken
+   index — never lower it onto an existing dex.
 4. **One call-site, one entrypoint.** The whole host integration is the
    single `invoke-static` in `InstagramAppShell.onCreate` →
    `EmbeddedEntry.onApp`. Keep `EmbeddedEntry` `@JvmStatic` and its signature
