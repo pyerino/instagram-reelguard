@@ -18,7 +18,8 @@ class DetectionRulesTest {
     fun `embedded rules parse with expected shape`() {
         assertEquals(1, rules.schemaVersion)
         assertTrue(rules.packageNames.contains("com.instagram.android"))
-        assertTrue(rules.igVersionName.startsWith("453"))
+        // version-shaped, never pinned: the metadata is retargeted every base bump
+        assertTrue(Regex("^\\d+\\.\\d+\\.\\d+\\.\\d+$").matches(rules.igVersionName))
 
         val reels = rules.surfaces.getValue("reels_tab")
         assertEquals("com.instagram.android:id/clips_pause_button", reels.pausedWhenIdPresent)
