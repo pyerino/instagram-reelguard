@@ -12,7 +12,7 @@
 #   3. defaults: signing/reelguard.keystore, password+alias "reelguard"
 # A missing keystore is generated on the fly via signing/generate-keystore.sh.
 #
-# env: REELGUARD_DEX_INDEX (default 24 — IG 453 ships classes1..23)
+# env: REELGUARD_DEX_INDEX (optional override; default = next free slot, see below)
 #      REELGUARD_BUILD_TOOLS (path to a build-tools dir with zipalign/apksigner)
 #      REELGUARD_WORK (workdir; default a fresh mktemp, removed on exit)
 #      REELGUARD_KEEP_WORK=y to keep the workdir for debugging
@@ -22,12 +22,19 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODULE=${1:?usage: embed-patch.sh <module-debug.apk> [merged.apk] [outdir]}
 MERGED=${2:-$ROOT/pipeline/merged-instagram.apk}
 OUTDIR=${3:-.}
-DEX_INDEX=${REELGUARD_DEX_INDEX:-24}
 LIB="$ROOT/pipeline/.tools/lib"
 
 [ -f "$MODULE" ] || { echo "no such module apk: $MODULE"; exit 1; }
 [ -f "$MERGED" ] || { echo "no such merged apk: $MERGED (run merge-splits.sh)"; exit 1; }
 [ -f "$LIB/baksmali-2.5.2.jar" ] || { echo "smali toolchain missing - run pipeline/fetch-tools.sh"; exit 1; }
+
+# Module dex slot: the next free index after the highest classes<N>.dex in the
+# merged apk. NEVER hardcode it — a stale slot silently replaces a host dex
+# and crashes the boot (NoClassDefFoundError from InstagramAppShell
+# attachBaseContext). IG 453 ships 23 root dexes -> slot 24; IG 455 ships
+# 32 -> 33. REELGUARD_DEX_INDEX overrides, at your own risk.
+MODN=$(unzip -l "$MERGED" | grep -o 'classes[0-9]*\.dex' | grep -o '[0-9]*' | sort -n | tail -1); MODN=$((MODN+1))
+DEX_INDEX=${REELGUARD_DEX_INDEX:-$MODN}
 
 # ---- keystore ------------------------------------------------------------------------------
 PROPS="$ROOT/signing/keystore.properties"
@@ -84,8 +91,8 @@ done
 echo "module smali files: $(find "$WORK"/modsrc-* -name '*.smali' | wc -l | tr -d ' ')"
 
 echo "== 2. module -> its own dex (classes$DEX_INDEX; no IG dex bloat) =="
-if unzip -l "$MERGED" | grep -q "classes$DEX_INDEX\.dex"; then
-  echo "NOTE: merged apk already has classes$DEX_INDEX.dex - set REELGUARD_DEX_INDEX higher"
+if [ -n "${REELGUARD_DEX_INDEX:-}" ] && unzip -l "$MERGED" | grep -q "classes$DEX_INDEX\.dex"; then
+  echo "NOTE: REELGUARD_DEX_INDEX=$DEX_INDEX is taken - unset it for auto (next free after classes$((DEX_INDEX-1)))"
   exit 1
 fi
 mkdir -p "$WORK/modtree"
