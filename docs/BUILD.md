@@ -158,15 +158,17 @@ adb shell am start -n com.instagram.android/.activity.MainTabActivity
 **Re-run the whole pipeline per Instagram minor update** — the patched apk
 is pinned to the base it was built from; there is no in-place upgrade.
 
-| | 453.0.0.55.79 | 455.0.0.51.72 |
-| --- | --- | --- |
-| root dexes | 23 → module slot **24** | 32 → module slot **33** (auto) |
-| entry call-site | `InstagramAppShell.onCreate`, classes3 | unchanged |
-| store splits | 9 (base + 8 configs) | **2 (base + xxhdpi)** |
+| | 453.0.0.55.79 | 455.0.0.51.72 | 456.0.0.53.78 |
+| --- | --- | --- | --- |
+| root dexes | 23 → slot **24** | 32 → slot **33** | 32 → slot **33** (auto) |
+| entry call-site | `InstagramAppShell.onCreate`, classes3 | unchanged | unchanged |
+| store splits | 9 (base + 8 configs) | 2 (base + xxhdpi) | **8** — base, xxhdpi, heliumcore, heliumiabexp, executorch, pytorch, spm, i18n_it (merged ≈ 260 MB) |
 
-The detection rules shipped in 0.7.4 are the 453-harvested tables; they are
-device-verified on 455 (id families survived). If a surface misbehaves after
-a future update, re-harvest per [DETECTION.md](DETECTION.md).
+The detection rules ship one metadata pair (`igVersionName`/`igVersionCode`,
+the 456 harvest is pending — re-check via `aapt dump badging` on the merged
+apk). The id tables themselves are the 453-harvested ones, device-verified
+unchanged on 455 and 456; if a surface misbehaves after a future update,
+re-harvest per [DETECTION.md](DETECTION.md).
 
 **Play updates vs the patched install.** Play-store updates fail with a
 *signature error* against our build by design — different cert. The options:
